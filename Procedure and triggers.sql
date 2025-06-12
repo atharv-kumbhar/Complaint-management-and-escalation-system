@@ -1,0 +1,82 @@
+-- IMPLIMENTATION OF BUSSINESS LOGIC 
+
+--1) ADDING NEW COMPLAINT'S ENTRY IN LOG 
+CREATE OR REPLACE TRIGGER TRG_LOG_NEW_COMPLAINT
+AFTER INSERT ON COMPLAINTS
+FOR EACH ROW
+BEGIN 
+INSERT INTO STATUS_LOG (LOG_ID,COMPLAINT_ID,STATUS) VALUES 
+(SEQ_STATUS_LOG_ID.NEXTVAL , :NEW.COMPLAINT_ID , 'NEW COMPLAINT');
+END;
+
+--2) ASSIGNING TECHNICIAN TO COMPLAIN AUTOMATICALLY FOR THIS WE WILL CREATE PROCEDURE 
+
+CREATE OR REPLACE PROCEDURE ASSIGNING_TECHNICIAN(P_COMPLAINT_ID NUMBER ) IS 
+TECHNICIAN_ID NUMBER ;
+
+BEGIN
+
+SELECT TECH_ID INTO TECHNICIAN_ID
+FROM TECHNICIANS
+WHERE IS_AVAILABLE ='Y'
+AND ROWNUM =1 ;
+
+UPDATE COMPLAINTS
+SET ASSIGNED_TECHNICIAN = TECHNICIAN_ID
+WHERE COMPLAINT_ID = P_COMPLAINT_ID;
+
+UPDATE TECHNICIANS 
+SET IS_AVAILABLE ='N'
+WHERE TECH_ID = TECHNICIAN_ID ;
+
+INSERT INTO STATUS_LOG (LOG_ID,COMPLAINT_ID,STATUS) VALUES 
+(SEQ_STATUS_LOG_ID.NEXTVAL , P_COMPLAINT_ID , 'TECHNICIAN ASSIGNED');
+
+EXCEPTION
+WHEN NO_DATA_FOUND THEN 
+DBMS_OUTPUT.PUT_LINE('NO TECHNICIAN IS AVAILABLE AT THIS MOMENT');
+
+END;
+
+--3) ADDING RESOLVED COMPLAINTS IN LOG TABLE 
+CREATE OR REPLACE TRIGGER trg_log_complaint_resolution
+AFTER UPDATE ON complaints
+FOR EACH ROW
+WHEN (NEW.status = 'Resolved' AND OLD.status != 'Resolved')
+BEGIN
+    INSERT INTO status_log (
+        log_id,
+        complaint_id,
+        status,
+        changed_at
+    ) VALUES (
+        seq_status_log_id.NEXTVAL,   -- Using the sequence you created
+        :NEW.complaint_id,
+        'Ressolved',
+        SYSDATE
+    );
+END;
+
+
+--4) ESCALATING COMPLAINTS 
+CREATE OR REPLACE PROCEDURE escalate_complaints IS
+  CURSOR c_pending_complaints IS
+    SELECT complaint_id
+    FROM complaints
+    WHERE status = 'Pending'
+      AND created_date < SYSDATE - 2;
+BEGIN
+  FOR rec IN c_pending_complaints LOOP
+    -- Insert into escalations table
+    INSERT INTO escalations (
+      escalation_id, complaint_id, levels, triggered_at
+    ) VALUES (
+      SEQ_ESCALATION_ID.NEXTVAL, rec.complaint_id, 1, SYSDATE
+    );
+
+    -- Update complaint status
+    UPDATE complaints
+    SET status = 'Escalated'
+    WHERE complaint_id = rec.complaint_id;
+  END LOOP;
+END;

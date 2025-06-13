@@ -42,7 +42,7 @@ This system streamlines the end-to-end complaint lifecycle — from logging to r
 ---
 
 ## ER Diagram
-   `(https://dbdiagram.io/d/PROJECT_1-684a9b6ea463a450da391d71)`
+   (https://dbdiagram.io/d/PROJECT_1-684a9b6ea463a450da391d71`
 
 
 ## 🧪 How to Use
